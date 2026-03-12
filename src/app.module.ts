@@ -13,8 +13,9 @@ import { DbResolver } from './db/db.resolver';
       name: 'RTM Class AI MCP Server',
       version: '1.0.0',
       transports: {
-        sse: { enabled: true }
-      }
+        sse: { enabled: true },
+        streamable: { enabled: true },
+      },
     }),
   ],
   controllers: [AppController],

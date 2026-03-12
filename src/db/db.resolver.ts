@@ -12,6 +12,7 @@ const mcqQuestionSchema = z
       .length(4)
       .describe('Exactly 4 answer options'),
     answer: z.enum(['A', 'B', 'C', 'D']).describe('Correct option label'),
+    points: z.number().optional().describe('Points for this question'),
   })
   .strict();
 
@@ -20,6 +21,7 @@ const essayQuestionSchema = z
     id: z.string().trim().min(1).describe('Question identifier'),
     text: z.string().trim().min(1).describe('Essay prompt text'),
     rubric: z.string().trim().min(1).describe('Short grading rubric'),
+    points: z.number().optional().describe('Points for this question'),
   })
   .strict();
 

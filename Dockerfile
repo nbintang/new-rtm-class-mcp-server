@@ -1,32 +1,24 @@
-FROM node:20-bookworm-slim AS deps
+# syntax=docker/dockerfile:1
 
+FROM node:24-alpine AS base
 WORKDIR /app
+RUN apk add --no-cache openssl
 
+FROM base AS deps
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci
 
-
 FROM deps AS builder
-
-COPY prisma ./prisma
+COPY . .
 RUN npx prisma generate
-
-COPY nest-cli.json tsconfig*.json ./
-COPY src ./src
 RUN npm run build
 
-
-FROM node:20-bookworm-slim AS runner
-
-WORKDIR /app
+FROM base AS runner
 ENV NODE_ENV=production
-
 COPY package*.json ./
 COPY prisma ./prisma
-RUN npm ci --omit=dev && npx prisma generate && npm cache clean --force
-
+RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
-
-EXPOSE 3000
-
+EXPOSE 5001
 CMD ["node", "dist/main"]

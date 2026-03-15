@@ -90,21 +90,6 @@ services:
       redis:
         condition: service_healthy
 
-  redis:
-    container_name: rtm-class-mcp-server-redis
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
-    ports:
-      - '${REDIS_HOST_PORT:-6380}:6379'
-    volumes:
-      - rtm_class_mcp_server_redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   rtm_class_mcp_server_redis_data:
     name: rtm_class_mcp_server_redis_data

@@ -2,82 +2,16 @@ import { Resolver, Tool } from '@nestjs-mcp/server';
 import { AIJobStatus, AIJobType, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  EssayContent,
+  essayContentSchema,
+  legacyOutputTypeSchema,
+  McqContent,
+  mcqContentSchema,
+  SummaryContent,
+  summaryContentSchema,
+} from './db.schema';
 
-const mcqQuestionSchema = z
-  .object({
-    id: z.string().trim().min(1).describe('Question identifier'),
-    text: z.string().trim().min(1).describe('MCQ prompt text'),
-    options: z
-      .array(z.string().trim().min(1))
-      .length(4)
-      .describe('Exactly 4 answer options'),
-    answer: z.enum(['A', 'B', 'C', 'D']).describe('Correct option label'),
-    points: z.number().optional().describe('Points for this question'),
-  })
-  .strict();
-
-const essayQuestionSchema = z
-  .object({
-    id: z.string().trim().min(1).describe('Question identifier'),
-    text: z.string().trim().min(1).describe('Essay prompt text'),
-    rubric: z.string().trim().min(1).describe('Short grading rubric'),
-    points: z.number().optional().describe('Points for this question'),
-  })
-  .strict();
-
-const mcqContentSchema = z
-  .object({
-    type: z.literal('MCQ').describe('MCQ content type marker'),
-    generatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO datetime when content was generated'),
-    questions: z
-      .array(mcqQuestionSchema)
-      .min(1)
-      .max(100)
-      .describe('Generated MCQ questions'),
-  })
-  .strict();
-
-const essayContentSchema = z
-  .object({
-    type: z.literal('ESSAY').describe('Essay content type marker'),
-    generatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO datetime when content was generated'),
-    questions: z
-      .array(essayQuestionSchema)
-      .min(1)
-      .max(100)
-      .describe('Generated essay questions'),
-  })
-  .strict();
-
-const summaryContentSchema = z
-  .object({
-    type: z.literal('SUMMARY').describe('Summary content type marker'),
-    generatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO datetime when content was generated'),
-    summary: z.string().trim().min(1).describe('Generated summary text'),
-  })
-  .strict();
-
-const legacyOutputTypeSchema = z.enum([
-  'MCQ',
-  'ESSAY',
-  'SUMMARY',
-  'LKPD',
-  'REMEDIAL',
-  'DISCUSSION_TOPIC',
-]);
-
-type McqContent = z.infer<typeof mcqContentSchema>;
-type EssayContent = z.infer<typeof essayContentSchema>;
-type SummaryContent = z.infer<typeof summaryContentSchema>;
 type TypedSaveParams<TContent> = {
   jobId: string;
   materialId: string;
@@ -178,8 +112,8 @@ export class DbResolver {
     },
   })
   async saveAiOutput(params: LegacySaveParams) {
-    console.warn(
-      `[DbResolver] Deprecated tool save_ai_output used for type ${params.type}`,
+    this.prisma.warn(
+      `Deprecated tool save_ai_output used for type ${params.type}`,
     );
 
     if (params.type === 'MCQ') {
@@ -246,9 +180,9 @@ export class DbResolver {
       };
     } catch (error) {
       const message = this.getErrorMessage(error);
-      console.error(
-        `Failed to save ${params.type} output for job ${params.jobId}:`,
-        error,
+      this.prisma.error(
+        `Failed to save ${params.type} output for job ${params.jobId}: ${message}`,
+        error instanceof Error ? error.stack : undefined,
       );
 
       try {
@@ -261,7 +195,11 @@ export class DbResolver {
           },
         });
       } catch (innerError) {
-        console.error('Failed to update job status to failed:', innerError);
+        const innerMessage = this.getErrorMessage(innerError);
+        this.prisma.error(
+          `Failed to update job status to failed for job ${params.jobId}: ${innerMessage}`,
+          innerError instanceof Error ? innerError.stack : undefined,
+        );
       }
 
       return {

@@ -18,9 +18,10 @@ describe('DbResolver', () => {
   let prisma: {
     aiOutput: { create: jest.Mock };
     aiJob: { update: jest.Mock };
+    warn: jest.Mock;
+    error: jest.Mock;
   };
   let resolver: DbResolver;
-  let warnSpy: jest.SpyInstance;
 
   beforeEach(() => {
     prisma = {
@@ -30,14 +31,11 @@ describe('DbResolver', () => {
       aiJob: {
         update: jest.fn().mockResolvedValue({ id: 'job-1' }),
       },
+      warn: jest.fn(),
+      error: jest.fn(),
     };
 
     resolver = new DbResolver(prisma as never);
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    warnSpy.mockRestore();
   });
 
   it('saves MCQ output with typed tool', async () => {

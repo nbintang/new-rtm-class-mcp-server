@@ -20,7 +20,7 @@ services:
       http_proxy: ${APP_HTTP_PROXY:-}
       https_proxy: ${APP_HTTPS_PROXY:-} 
     ports:
-      - '${PORT:-5003}:${PORT:-5002}'
+      - '${HOST_PORT:-5003}:${PORT:-5002}'
 
   mcp-server-migrate:
     container_name: rtm-class-mcp-server-migrate
@@ -70,7 +70,7 @@ services:
       http_proxy: ${APP_HTTP_PROXY:-}
       https_proxy: ${APP_HTTPS_PROXY:-}  
     ports:
-      - '${PORT:-5003}:${PORT:-5002}'
+      - '${HOST_PORT:-5003}:${PORT:-5002}'
     volumes:
       - .:/app
       - /app/node_modules

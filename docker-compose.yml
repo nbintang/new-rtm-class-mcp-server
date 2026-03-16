@@ -22,7 +22,7 @@ services:
       https_proxy: ${APP_HTTPS_PROXY:-}
       no_proxy: ${APP_NO_PROXY:-localhost,127.0.0.1,redis}
     ports:
-      - '${PORT:-5002}:${PORT:-5002}'
+      - '${PORT:-5003}:${PORT:-5002}'
     depends_on:
       redis:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
       https_proxy: ${APP_HTTPS_PROXY:-}
       no_proxy: ${APP_NO_PROXY:-localhost,127.0.0.1,redis}
     ports:
-      - '${PORT:-5002}:${PORT:-5002}'
+      - '${PORT:-5003}:${PORT:-5002}'
     volumes:
       - .:/app
       - /app/node_modules

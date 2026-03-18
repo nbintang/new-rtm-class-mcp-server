@@ -1,98 +1,223 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# RTM Class MCP Server
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS 11 + Fastify + Prisma PostgreSQL server that exposes MCP tools for saving AI output records.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## What This Project Does
 
-## Description
+This service receives MCP tool calls and writes generated AI content into:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- `AIOutput`
+- `AIJob` (status update after write)
 
-## Project setup
+Current implementation focuses on saving output for existing jobs and marking them as completed.
+
+## Current MCP Tools
+
+Implemented in [`src/db/db.resolver.ts`](./src/db/db.resolver.ts):
+
+- `save_mcq_output`
+- `save_essay_output`
+- `save_summary_output`
+- `save_ai_output` (deprecated compatibility shim)
+
+The shim `save_ai_output` supports only:
+
+- `MCQ`
+- `ESSAY`
+- `SUMMARY`
+
+It does not support `LKPD`, `REMEDIAL`, or `DISCUSSION_TOPIC`.
+
+## Tool Input Contracts
+
+All typed tools require:
+
+- `jobId` (UUID)
+- `materialId` (UUID)
+- `content` (strict Zod schema)
+
+### `save_mcq_output`
+
+`content` shape:
+
+- `type: "MCQ"`
+- `generatedAt: ISO datetime string`
+- `questions: [{ id, text, options[4], answer(A|B|C|D), points? }]`
+
+### `save_essay_output`
+
+`content` shape:
+
+- `type: "ESSAY"`
+- `generatedAt: ISO datetime string`
+- `questions: [{ id, text, rubric, points? }]`
+
+### `save_summary_output`
+
+`content` shape:
+
+- `type: "SUMMARY"`
+- `generatedAt: ISO datetime string`
+- `summary: string`
+
+Schema source: [`src/db/db.schema.ts`](./src/db/db.schema.ts)
+
+## Write Behavior (Important)
+
+Current behavior in `saveTypedOutput`:
+
+1. `aiOutput.create(...)` is executed.
+2. If create succeeds, `aiJob.update(...)` sets:
+   - `status = succeeded`
+   - `completedAt = now`
+   - `lastError = null`
+3. If any error occurs:
+   - logs error
+   - tries `aiJob.update(...)` with:
+     - `status = failed_processing`
+     - `lastError = <error message>`
+     - `completedAt = now`
+   - returns `{ success: false, message: ... }`
+
+Notes:
+
+- This implementation does **not** auto-create `AIJob`.
+- This implementation does **not** resolve jobs by `externalJobId`.
+- `AIOutput.jobId` is unique in Prisma schema, so duplicate writes for same job will fail unless handled upstream.
+
+## Tech Stack
+
+- Node.js
+- NestJS 11
+- Fastify (`@nestjs/platform-fastify`)
+- `@nestjs-mcp/server`
+- PostgreSQL + Prisma
+- Zod
+- Jest
+
+## Prerequisites
+
+- Node.js 20+ (recommended)
+- PostgreSQL
+- npm
+
+## Setup
+
+1. Install dependencies:
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+2. Copy env file:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+3. Generate Prisma client:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npx prisma generate
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+4. Push schema (for local/dev DB without migrations folder):
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npx prisma db push
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+5. Run dev server:
 
-## Resources
+```bash
+npm run start:dev
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## Environment Variables (Code-Accurate)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Runtime variables used by app code
 
-## Support
+| Variable | Required | Used by | Description |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Yes | Prisma datasource | PostgreSQL connection string (required by Prisma schema). |
+| `PORT` | No | `src/main.ts` | App listen port. Default: `3000` if unset. |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Variables present in repo but not directly read by app code
 
-## Stay in touch
+| Variable | Where used | Description |
+| --- | --- | --- |
+| `HOST_PORT` | `docker-compose.yml` | Host port mapping to container `PORT` (default `5003:5002`). |
+| `NODE_ENV` | `docker-compose.yml`/Docker runtime | Container runtime mode (`production`/`development`). |
+| `APP_HTTP_PROXY` / `APP_HTTPS_PROXY` | `docker-compose.yml` | Optional proxy env injection into container. |
+| `NODE_OPTIONS` | `docker-compose.yml` | Optional Node runtime flags in container. |
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+`.env.example` currently contains:
 
-## License
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/rtm_db_dev?schema=public"
+PORT=5002
+HOST_PORT=5003
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Available Scripts
+
+From [`package.json`](./package.json):
+
+```bash
+npm run build
+npm run start
+npm run start:dev
+npm run start:debug
+npm run start:prod
+npm run lint
+npm run format
+npm run test
+npm run test:watch
+npm run test:cov
+npm run test:debug
+npm run test:e2e
+```
+
+## HTTP Routes and MCP Transports
+
+### Basic HTTP route
+
+- `GET /` returns `Hello World!`
+
+### MCP transports
+
+Configured in [`src/app.module.ts`](./src/app.module.ts):
+
+- `streamable` enabled
+- `sse` enabled
+
+The exact MCP route paths are provided by `@nestjs-mcp/server` defaults unless overridden.
+
+## Database Schema Notes
+
+Prisma schema file: [`prisma/schema.prisma`](./prisma/schema.prisma)
+
+Relevant models:
+
+- `AiJob` mapped to table `"AIJob"`
+- `AiOutput` mapped to table `"AIOutput"`
+
+Key constraint:
+
+- `AiOutput.jobId` is `@unique` (one output row per job)
+
+## Docker
+
+`docker-compose.yml` defines profiles:
+
+- `mcp-server` (`prod`)
+- `mcp-server-migrate` (`prod`, runs `prisma migrate deploy`)
+- `mcp-server-dev` (`dev`, runs watch mode)
+
+Main image is built from [`Dockerfile`](./Dockerfile).
